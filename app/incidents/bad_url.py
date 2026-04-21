@@ -8,7 +8,7 @@ from app.state import state
 logger = logging.getLogger(__name__)
 
 NAME = "bad_url"
-DURATION = 720  # 12-minute safety net
+DURATION = 1800  # 30-minute safety net
 TARGET_URL = "http://192.0.2.1/api/data"  # TEST-NET, guaranteed unreachable
 REQUEST_TIMEOUT = 3
 REQUEST_INTERVAL = 10

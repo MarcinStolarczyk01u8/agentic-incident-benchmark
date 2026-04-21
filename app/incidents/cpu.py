@@ -7,7 +7,7 @@ from app.state import state
 logger = logging.getLogger(__name__)
 
 NAME = "cpu"
-DURATION = 720  # 12-minute safety net
+DURATION = 1800  # 30-minute safety net
 
 
 def run(stop_event):

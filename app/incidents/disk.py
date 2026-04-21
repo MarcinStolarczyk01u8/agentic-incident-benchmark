@@ -9,7 +9,7 @@ from app.state import state
 logger = logging.getLogger(__name__)
 
 NAME = "disk"
-DURATION = 720  # 12-minute safety net
+DURATION = 1800  # 30-minute safety net
 TARGET_PERCENT = 95.0
 DISK_FILE = "/tmp/fill_disk"
 CHUNK_SIZE = 100 * 1024 * 1024  # 100 MB per write

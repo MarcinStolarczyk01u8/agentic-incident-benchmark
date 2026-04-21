@@ -8,7 +8,7 @@ from app.state import state
 logger = logging.getLogger(__name__)
 
 NAME = "ram"
-DURATION = 720  # 12-minute safety net
+DURATION = 1800  # 30-minute safety net
 TARGET_PERCENT = 90.0
 CHUNK_MB = 50
 
