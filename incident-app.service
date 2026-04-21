@@ -1,0 +1,17 @@
+[Unit]
+Description=Incident Simulation App
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/agentic-incident-benchmark
+ExecStart=/home/ubuntu/agentic-incident-benchmark/run.sh
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=incident-app
+
+[Install]
+WantedBy=multi-user.target
