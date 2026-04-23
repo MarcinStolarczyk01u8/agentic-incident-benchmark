@@ -12,6 +12,7 @@ RestartSec=3
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=incident-app
+EnvironmentFile=/etc/incident-app.env
 
 [Install]
 WantedBy=multi-user.target
