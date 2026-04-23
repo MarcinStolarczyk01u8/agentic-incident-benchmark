@@ -6,16 +6,16 @@ from app.state import state
 
 logger = logging.getLogger(__name__)
 
-NAME = "cpu"
-DURATION = 1800  # 30-minute safety net
+NAME = "export"
+DURATION = 1800
 
 
 def run(stop_event):
     cores = os.cpu_count() or 1
-    logger.info("[CPU] Starting stress --cpu %d", cores)
+    logger.info("[EXPORT] Starting data export on %d workers", cores)
     proc = subprocess.Popen(["stress", "--cpu", str(cores)])
     with state.lock:
-        state.stress_proc = proc
+        state.background_proc = proc
     try:
         stop_event.wait(timeout=DURATION)
     finally:
@@ -25,6 +25,6 @@ def run(stop_event):
         except Exception:
             proc.kill()
         with state.lock:
-            state.stress_proc = None
-        state.clear_active(NAME)
-        logger.info("[CPU] Stopped")
+            state.background_proc = None
+        state.finish_task(NAME)
+        logger.info("[EXPORT] Stopped")

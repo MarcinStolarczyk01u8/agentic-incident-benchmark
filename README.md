@@ -1,12 +1,13 @@
-# Incident Simulation App
+# Order Management Service
 
-FastAPI app that triggers real system-level incidents on an EC2 instance so CloudWatch alarms fire and the AWS DevOps Agent can investigate them autonomously.
+FastAPI backend for managing customer orders, running background jobs, and maintaining service health on AWS EC2.
 
 ## Prerequisites
 
 - Ubuntu 24.04, Python 3.11+
-- `stress` installed: `sudo apt install -y stress`
+- `stress` package: `sudo apt install -y stress`
 - Port 8000 open in the EC2 security group
+- PostgreSQL RDS instance accessible from the EC2
 
 ## Deploy on a fresh EC2
 
@@ -18,7 +19,7 @@ cd ~/agentic-incident-benchmark
 # 2. Make run.sh executable
 chmod +x run.sh
 
-# 3. Install systemd service (for auto-restart after crash scenario)
+# 3. Install systemd service
 sudo cp incident-app.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable incident-app
@@ -29,68 +30,121 @@ sudo systemctl status incident-app
 curl http://localhost:8000/health
 ```
 
-The service restarts automatically within 3 seconds if the process crashes (crash scenario).
+The service restarts automatically within 3 seconds if the process exits unexpectedly.
 
 To run without systemd during development:
 ```bash
+export DATABASE_URL=postgresql://user:password@your-rds-endpoint:5432/dbname
 ./run.sh
 ```
 
+## Database
+
+The service connects to PostgreSQL via the `DATABASE_URL` environment variable:
+
+```
+DATABASE_URL=postgresql://user:password@rds-endpoint:5432/dbname
+```
+
+Schema is created automatically on startup. If the database is unreachable at startup, the service still starts and all non-database endpoints remain available.
+
+Verify database connectivity:
+```bash
+curl http://localhost:8000/health | python3 -m json.tool
+# "db_connected": true
+```
+
+`DATABASE_URL` must be exported in the EC2 environment before starting the service.
+
 ## Endpoints
+
+### Health & maintenance
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/health` | Current time, uptime, active incident, CPU/RAM/disk % |
-| GET | `/incidents/cpu` | Max-core CPU stress via `stress` for up to 12 min |
-| GET | `/incidents/ram` | Allocate RAM until ~90% consumed, hold for up to 12 min |
-| GET | `/incidents/disk` | Fill `/tmp/fill_disk` to ~95% disk, hold for up to 12 min |
-| GET | `/incidents/crash` | SIGKILL self after 2 s (systemd restarts the service) |
-| GET | `/incidents/bad_url` | Loop HTTP errors to a dead URL for up to 12 min |
-| GET | `/reset` | Stop all incidents, free resources, return to clean state |
+| GET | `/health` | Service health, resource usage, DB pool stats |
+| GET | `/maintenance/reset` | Stop all running background tasks and free resources |
+| GET | `/maintenance/restart` | Restart the worker process |
+| GET | `/maintenance/reload` | Reload database configuration |
 
-All incident endpoints return **202 Accepted** immediately (work runs in background).  
-A second incident while one is active returns **409 Conflict** with the active incident name.  
-All incidents auto-reset after **12 minutes** even if `/reset` is never called.
+### Background tasks
 
-### Example curl commands
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/tasks/export` | Run CPU-intensive order data export |
+| GET | `/tasks/warmup` | Pre-load application cache into memory |
+| GET | `/tasks/backup` | Write a local data backup to disk |
+| GET | `/tasks/notify` | Dispatch customer notifications via webhook |
+| GET | `/tasks/analytics` | Run aggregated sales analytics report |
+| GET | `/tasks/sync` | Sync order data with the warehouse system |
+| GET | `/tasks/archive` | Archive historical order records |
+
+### Orders
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/orders` | Create a new order |
+| GET | `/orders/{user_id}` | List all orders for a user |
+| DELETE | `/orders/all` | Truncate the orders table |
+
+All background task endpoints return **202 Accepted** immediately; work runs in a background thread. Only one task runs at a time — a second request while one is active returns **409 Conflict**.
+
+## Example curl commands
 
 ```bash
 BASE=http://<EC2-PUBLIC-IP>:8000
 
 # Health check
-curl $BASE/health
-
-# Trigger incidents
-curl $BASE/incidents/cpu
-curl $BASE/incidents/ram
-curl $BASE/incidents/disk
-curl $BASE/incidents/crash
-curl $BASE/incidents/bad_url
-
-# Reset to clean state
-curl $BASE/reset
-
-# Check status during an incident
 curl $BASE/health | python3 -m json.tool
+
+# Background tasks
+curl $BASE/tasks/export
+curl $BASE/tasks/warmup
+curl $BASE/tasks/backup
+curl $BASE/tasks/notify
+curl $BASE/tasks/analytics
+curl $BASE/tasks/sync
+curl $BASE/tasks/archive
+
+# Maintenance
+curl $BASE/maintenance/restart
+curl $BASE/maintenance/reload
+curl $BASE/maintenance/reset
+
+# Orders
+curl -X POST "$BASE/orders?user_id=1&product_name=widget&quantity=2&total_price=9.99"
+curl "$BASE/orders/1"
+curl -X DELETE "$BASE/orders/all"
 ```
 
-### Sample /health response
+## Sample /health response
 
 ```json
 {
   "time": "2026-04-20T02:15:00+00:00",
   "uptime_seconds": 3742,
-  "active_incident": "cpu",
-  "incident_running_seconds": 47,
-  "cpu_percent": 99.8,
+  "active_task": null,
+  "task_running_seconds": null,
+  "cpu_percent": 12.4,
   "ram_percent": 23.1,
-  "disk_percent": 18.4
+  "disk_percent": 18.4,
+  "db_connected": true,
+  "db_pool_size": 10,
+  "db_pool_checked_out": 1,
+  "db_size_mb": 42.3
 }
 ```
 
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | Yes (for DB endpoints) | — | PostgreSQL connection string |
+| `MAX_DB_SIZE_MB` | No | `1000` | Storage ceiling for the archive task |
+
 ## Notes
 
-- **Disk incident**: `/tmp` on some Ubuntu images is a `tmpfs` mount (RAM-backed). If you need to fill a real EBS volume, change `DISK_FILE` in [app/incidents/disk.py](app/incidents/disk.py) to a path outside `/tmp`, e.g. `/var/tmp/fill_disk`.
-- **Crash recovery**: After `GET /incidents/crash`, the process is killed with SIGKILL. systemd restarts it within 3 seconds. No `/reset` call is needed.
-- **No authentication**: This app is intentionally unauthenticated. Restrict access via EC2 security groups.
-- **Portability**: No AWS SDK calls in the app. The same code runs unchanged on Azure or any Linux VM.
+- **Backup task**: `/tmp` on some Ubuntu images is a `tmpfs` mount (RAM-backed). To target a real EBS volume, change `BACKUP_FILE` in [app/tasks/backup.py](app/tasks/backup.py) to `/var/tmp/backup_data`.
+- **Restart recovery**: After `GET /maintenance/restart`, the process exits and systemd restarts it within 3 seconds. No reset call is needed.
+- **No authentication**: Access is controlled via EC2 security groups.
+- **Database unavailable**: If `DATABASE_URL` is not set, DB-dependent endpoints return `503 Database not configured`. All other endpoints work normally.
