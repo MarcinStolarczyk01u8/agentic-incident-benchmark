@@ -14,7 +14,7 @@ NAME = "analytics"
 DURATION = 1800
 REPORT_BATCH_SIZE = 1000
 REPORT_SAMPLE_SIZE = 300_000
-SAMPLE_INTERVAL = 2
+SAMPLE_INTERVAL = 0
 REPORT_WINDOW_SECONDS = 600
 
 
@@ -55,14 +55,20 @@ def run(stop_event):
     logger.info("[ANALYTICS] Running report aggregation for %d seconds", REPORT_WINDOW_SECONDS)
     start = time.time()
     while not stop_event.is_set() and (time.time() - start) < REPORT_WINDOW_SECONDS:
-        uid = random.randint(1, 1000)
         db = db_module.SessionLocal()
         try:
             t0 = time.time()
             db.execute(
-                text("SELECT * FROM orders WHERE user_id = :uid"), {"uid": uid}
+                text("""
+                    SELECT user_id, COUNT(*) AS order_count,
+                           SUM(total_price) AS revenue,
+                           AVG(total_price) AS avg_order
+                    FROM orders
+                    GROUP BY user_id
+                    ORDER BY revenue DESC
+                """)
             ).fetchall()
-            logger.info("[ANALYTICS] user_id=%d aggregation took %.3fs", uid, time.time() - t0)
+            logger.info("[ANALYTICS] full aggregation took %.3fs", time.time() - t0)
         except Exception as exc:
             logger.error("[ANALYTICS] Query error: %s", exc)
         finally:

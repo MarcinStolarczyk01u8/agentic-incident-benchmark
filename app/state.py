@@ -6,6 +6,7 @@ class AppState:
     def __init__(self):
         self.lock = threading.Lock()
         self.active_task: str | None = None
+        self.stop_event: threading.Event = threading.Event()
         self.background_proc = None  # subprocess.Popen, set by export task
         self.memory_cache: list = []  # bytearrays held during warmup task
         self.start_time: float | None = None
