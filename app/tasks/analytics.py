@@ -60,9 +60,13 @@ def run(stop_event):
             t0 = time.time()
             db.execute(
                 text("""
-                    SELECT user_id, COUNT(*) AS order_count,
+                    SELECT user_id,
+                           COUNT(*) AS order_count,
                            SUM(total_price) AS revenue,
-                           AVG(total_price) AS avg_order
+                           AVG(total_price) AS avg_order,
+                           SUM(SUM(total_price)) OVER (ORDER BY SUM(total_price) DESC) AS cumulative_revenue,
+                           RANK() OVER (ORDER BY COUNT(*) DESC) AS volume_rank,
+                           PERCENT_RANK() OVER (ORDER BY SUM(total_price) DESC) AS revenue_percentile
                     FROM orders
                     GROUP BY user_id
                     ORDER BY revenue DESC
