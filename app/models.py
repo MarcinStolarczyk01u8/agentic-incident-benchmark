@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float
+from sqlalchemy import Column, Integer, String, Text, DateTime, Float
 from sqlalchemy.sql import func
 from app.database import Base
 
@@ -7,7 +7,7 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer)
-    product_name = Column(String(255))
+    product_name = Column(Text)
     quantity = Column(Integer)
     total_price = Column(Float)
     status = Column(String(50), default="pending")

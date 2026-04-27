@@ -1,5 +1,4 @@
 import logging
-import os
 import threading
 import time
 from contextlib import asynccontextmanager
@@ -15,7 +14,7 @@ import app.database as db_module
 from app.database import get_db, Base
 from app.models import Order
 from app.state import state
-from app.tasks import analytics, archive, backup, db_reload, export, notify, restart, sync, warmup
+from app.tasks import analytics, db_reload, migrate, notify, sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -23,8 +22,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%dT%H:%M:%SZ",
 )
 logger = logging.getLogger(__name__)
-
-BACKUP_FILE = "/tmp/backup_data"
 
 
 @asynccontextmanager
@@ -43,15 +40,11 @@ async def lifespan(_app):
 app = FastAPI(title="Order Management Service", lifespan=lifespan)
 
 _TASK_RUNNERS = {
-    "export": export.run,
-    "warmup": warmup.run,
-    "backup": backup.run,
-    "restart": restart.run,
     "notify": notify.run,
     "analytics": analytics.run,
     "sync": sync.run,
     "db_reload": db_reload.run,
-    "archive": archive.run,
+    "migrate": migrate.run,
 }
 
 
@@ -77,21 +70,6 @@ def _start_task(name: str):
 
 # ── Background task endpoints ──────────────────────────────────────────────────
 
-@app.get("/tasks/export")
-def task_export():
-    return _start_task("export")
-
-
-@app.get("/tasks/warmup")
-def task_warmup():
-    return _start_task("warmup")
-
-
-@app.get("/tasks/backup")
-def task_backup():
-    return _start_task("backup")
-
-
 @app.get("/tasks/notify")
 def task_notify():
     return _start_task("notify")
@@ -107,14 +85,9 @@ def task_sync():
     return _start_task("sync")
 
 
-@app.get("/tasks/archive")
-def task_archive():
-    return _start_task("archive")
-
-
-@app.get("/maintenance/restart")
-def maintenance_restart():
-    return _start_task("restart")
+@app.get("/tasks/migrate")
+def task_migrate():
+    return _start_task("migrate")
 
 
 @app.get("/maintenance/reload")
@@ -175,34 +148,11 @@ def maintenance_reset():
     with state.lock:
         stopped = state.active_task
         state.stop_event.set()
-        background_proc = state.background_proc
-        state.background_proc = None
-        state.memory_cache.clear()
         state.active_task = None
         state.start_time = None
 
-    if background_proc is not None:
-        try:
-            background_proc.terminate()
-            background_proc.wait(timeout=3)
-        except Exception:
-            background_proc.kill()
-
-    backup_deleted = False
-    try:
-        os.remove(BACKUP_FILE)
-        backup_deleted = True
-    except FileNotFoundError:
-        pass
-
     logger.info("[MAINTENANCE] Reset complete — was running: %s", stopped)
-    return {
-        "status": "reset",
-        "was_active": stopped,
-        "worker_stopped": background_proc is not None,
-        "cache_cleared": stopped == "warmup",
-        "backup_deleted": backup_deleted,
-    }
+    return {"status": "reset", "was_active": stopped}
 
 
 # ── Health ─────────────────────────────────────────────────────────────────────
