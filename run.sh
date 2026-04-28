@@ -5,8 +5,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Install stress
-sudo apt-get update
-sudo apt-get install -y stress
+# sudo apt-get update
+# sudo apt-get install -y stress
 
 # Install pip
 sudo apt install -y python3-pip
