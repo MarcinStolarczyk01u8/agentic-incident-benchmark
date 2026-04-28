@@ -64,20 +64,16 @@ curl http://localhost:8000/health | python3 -m json.tool
 |--------|------|-------------|
 | GET | `/health` | Service health, resource usage, DB pool stats |
 | GET | `/maintenance/reset` | Stop all running background tasks and free resources |
-| GET | `/maintenance/restart` | Restart the worker process |
 | GET | `/maintenance/reload` | Reload database configuration |
 
 ### Background tasks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| GET | `/tasks/export` | Run CPU-intensive order data export |
-| GET | `/tasks/warmup` | Pre-load application cache into memory |
-| GET | `/tasks/backup` | Write a local data backup to disk |
 | GET | `/tasks/notify` | Dispatch customer notifications via webhook |
 | GET | `/tasks/analytics` | Run aggregated sales analytics report |
 | GET | `/tasks/sync` | Sync order data with the warehouse system |
-| GET | `/tasks/archive` | Archive historical order records |
+| GET | `/tasks/migrate` | Run legacy data migration |
 
 ### Orders
 
@@ -98,16 +94,12 @@ BASE=http://<EC2-PUBLIC-IP>:8000
 curl $BASE/health | python3 -m json.tool
 
 # Background tasks
-curl $BASE/tasks/export
-curl $BASE/tasks/warmup
-curl $BASE/tasks/backup
 curl $BASE/tasks/notify
 curl $BASE/tasks/analytics
 curl $BASE/tasks/sync
-curl $BASE/tasks/archive
+curl $BASE/tasks/migrate
 
 # Maintenance
-curl $BASE/maintenance/restart
 curl $BASE/maintenance/reload
 curl $BASE/maintenance/reset
 
@@ -144,7 +136,5 @@ curl -X DELETE "$BASE/orders/all"
 
 ## Notes
 
-- **Backup task**: `/tmp` on some Ubuntu images is a `tmpfs` mount (RAM-backed). To target a real EBS volume, change `BACKUP_FILE` in [app/tasks/backup.py](app/tasks/backup.py) to `/var/tmp/backup_data`.
-- **Restart recovery**: After `GET /maintenance/restart`, the process exits and systemd restarts it within 3 seconds. No reset call is needed.
 - **No authentication**: Access is controlled via EC2 security groups.
 - **Database unavailable**: If `DATABASE_URL` is not set, DB-dependent endpoints return `503 Database not configured`. All other endpoints work normally.
