@@ -55,6 +55,7 @@ def run(stop_event):
             max_overflow=5,
             pool_timeout=30,
             pool_pre_ping=True,
+            connect_args={"connect_timeout": 3},
         )
         db_module.engine = primary
         db_module.SessionLocal = sessionmaker(primary)
