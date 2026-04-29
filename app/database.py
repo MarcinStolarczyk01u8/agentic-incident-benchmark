@@ -19,6 +19,7 @@ if DATABASE_URL:
             max_overflow=5,
             pool_timeout=30,
             pool_pre_ping=True,
+            connect_args={"connect_timeout": 3},
         )
         SessionLocal = sessionmaker(engine)
     except Exception as exc:
