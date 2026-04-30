@@ -40,8 +40,9 @@ _MIGRATION_BACKLOG: list[dict] = [_build_source_record() for _ in range(MIGRATE_
 
 
 def _pop_batch(backlog: list[dict], n: int) -> list[dict]:
-    items = backlog[:]
-    return items[:n]
+    batch = backlog[:n]
+    del backlog[: len(batch)]
+    return batch
 
 
 def _log_db_size(committed: int) -> None:

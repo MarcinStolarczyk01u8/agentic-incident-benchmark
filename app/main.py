@@ -24,11 +24,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _ensure_db_optimizations() -> None:
+    if db_module.engine is None:
+        return
+
+    with db_module.engine.begin() as conn:
+        conn.execute(text("CREATE INDEX IF NOT EXISTS ix_orders_user_id ON orders (user_id)"))
+
+
 @asynccontextmanager
 async def lifespan(_app):
     try:
         if db_module.engine is not None:
             Base.metadata.create_all(db_module.engine)
+            _ensure_db_optimizations()
             logger.info("Database schema initialised")
         else:
             logger.warning("DATABASE_URL not set — skipping schema initialisation")
